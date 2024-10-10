@@ -4,7 +4,9 @@ import os
 import sqlite3
 import logging
 
-
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename='change_log.log', encoding='utf-8', level=logging.DEBUG, format='')
+logger.info('DETAILED SUMMARY OF DATABASE CHANGES')
 database_path = 'cademycode_subscriber_data.db'
 if os.path.isfile(database_path):
 	connection = sqlite3.connect(database_path)
@@ -47,18 +49,31 @@ subscriber_data_merged_df = pd.merge(subscriber_data_merged_df, jobs_df, left_on
 subscriber_data_merged_df = subscriber_data_merged_df.drop(['index_x', 'index_y', 'index'], axis=1)
 # load up existing csv file
 existing_database = pd.read_csv('active_subscriber_data_merged.csv')
-print(existing_database.head())
 # check schema to see if new columns have been added
 old_columns = set(existing_database.columns)
 new_columns = set(existing_database.columns)
-print(list(new_columns - old_columns))
+added_columns = list(new_columns - old_columns)
+if len(added_columns) > 0:
+	logger.info('--------COLUMNS ADDED--------')
+	for col in added_columns:
+		logger.info("+ new field called ", col)
 # check rows to see new users that have been added
 new_rows = existing_database.merge(subscriber_data_merged_df, on='uuid', how='outer', suffixes=['', '_'], indicator=True)
-print(new_rows[new_rows._merge == 'right_only'])
-# create change log with new updates to database
+added_rows = new_rows[new_rows._merge == 'right_only']
+added_rows = added_rows[['uuid', 'name']]
+removed_rows = new_rows[new_rows._merge == 'left_only']
+removed_rows = removed_rows[['uuid', 'name']]
 
+# create change log with new updates to database
+if len(added_rows) > 0:
+	logger.info('--------ADDED ROWS--------')
+	logger.info(added_rows)
+if len(removed_rows) > 0:
+	logger.info('-------REMOVED ROWS-------')
+	logger.info(removed_rows)
 # update revision number of old database and save in archives folder
 
 # save new dataframe in place of most current data
-print(subscriber_data_merged_df.head())
+subscriber_data_merged_df.to_csv('active_subscriber_data_merged_temp.csv', index=False) 
+
 connection.close()
